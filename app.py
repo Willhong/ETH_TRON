@@ -62,6 +62,9 @@ def estimate_tron_energy(from_address, to_address,client):
 
     data = response.json()
     required_energy =data["energy_used"]
+    #data['result']에 'message' 가 있으면 에러
+    if data.get('result').get('message')!=None and data.get('result').get('message').startswith('REVERT'):
+        required_energy = 0
     return required_energy
 
 def get_tron_energy_price():
@@ -80,7 +83,6 @@ def get_tron_energy_price():
     data=response.json()
     energy_cost = int(data['result'], 16)
     return energy_cost
-
 
 usdt_abi=[{"constant":True,
            "inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":False,"stateMutability":"view","type":"function"},{"constant":False,"inputs":[{"name":"_upgradedAddress","type":"address"}],"name":"deprecate","outputs":[],"payable":False,"stateMutability":"nonpayable","type":"function"},{"constant":False,"inputs":[{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],"name":"approve","outputs":[],"payable":False,"stateMutability":"nonpayable","type":"function"},{"constant":True,"inputs":[],"name":"deprecated","outputs":[{"name":"","type":"bool"}],"payable":False,"stateMutability":"view","type":"function"},{"constant":False,"inputs":[{"name":"_evilUser","type":"address"}],"name":"addBlackList","outputs":[],"payable":False,"stateMutability":"nonpayable","type":"function"},{"constant":True,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":False,"stateMutability":"view","type":"function"},{"constant":False,"inputs":[{"name":"_from","type":"address"},{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],
@@ -404,6 +406,14 @@ def estimate_tron_gas():
     to_address = request.get_json()['to_address']
 
     required_energy=estimate_tron_energy(from_address, to_address,client)
+    if(required_energy==0):
+        return jsonify({
+            'status': 500,
+            'energy_used': 0,
+            'energy_cost': 0,
+            'energy_cost_trx' : 0,
+            'total_energy_const(trx)': 0 ,
+        })
     energy_cost=get_tron_energy_price()
     # 1 trx = 1,000,000 sun
     # 420 sun = 1 energy
@@ -417,7 +427,7 @@ def estimate_tron_gas():
         'total_energy_const(trx)': required_energy * (energy_cost/1000000) ,
     })
 
-@application.route('/TRON/send/TRX', methods=['GET'])
+@application.route('/TRON/send/TRX', methods=['POST'])
 def send_tron():
     provider = HTTPProvider(api_key=TRONGRID_API_KEY)
     client = Tron(provider)
@@ -448,7 +458,6 @@ def send_tron():
         'usdt_balance': '{}{}'.format(cntr.functions.balanceOf(from_address) / 10 ** precision ,cntr.functions.symbol()),
         'tron_balance': '{}TRX'.format(tron_balance)
     })
-
 
 if __name__ == '__main__':
     application.run('127.0.0.1',debug=True)
