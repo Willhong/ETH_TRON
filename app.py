@@ -123,6 +123,40 @@ async def createWallet_ETH():
     finally:
         return respone
     
+@application.route('/ETH/check/ETH/', methods=['POST'])
+async def check_ETH():
+    try:
+        requests_data = request.get_json()
+        from_address=requests_data['from_address']
+
+        wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
+        balance = wallet.eth.w3.eth.get_balance(from_address)
+        balance= Web3.from_wei(balance, 'ether')
+        print(balance)
+        # usdt_address='0xdac17f958d2ee523a2206206994597c13d831ec7'
+        # usdt_address=Web3.to_checksum_address(usdt_address)
+        # wallet_contract = wallet.eth.contract(usdt_address, abi=usdt_abi)
+        # usdt_balance = wallet_contract.functions.balanceOf(from_address).call()
+
+        # print(usdt_balance / 1000000)
+        #return wallet address and balance
+        message = {
+            'status' : 200,
+            'address' :from_address ,
+            'eth_balance' :float(balance) ,
+            # 'usdt_balance' : usdt_balance/ 1000000
+        }
+        respone = jsonify(message)
+    except Exception as e:
+        message = {
+                'status' : 500,
+                'message' : str(e)
+            }
+        respone = jsonify(message)
+        respone.status_code = 500
+    finally:
+        return respone
+
 @application.route('/ETH/send/ETH/', methods=['POST'])
 async def send_ETH():
     try:
@@ -162,45 +196,11 @@ async def send_ETH():
         print(balance)
         message = {
             'status' : 200,
-            'address' :to_address ,
+            'address' :from_address ,
             'balance' :balance ,
             'gas_spent' : gas_in_eth,
             'tx_hash' : tx_hash.hex()
 
-        }
-        respone = jsonify(message)
-    except Exception as e:
-        message = {
-                'status' : 500,
-                'message' : str(e)
-            }
-        respone = jsonify(message)
-        respone.status_code = 500
-    finally:
-        return respone
-    
-@application.route('/ETH/check/ETH/', methods=['POST'])
-async def check_ETH():
-    try:
-        requests_data = request.get_json()
-        from_address=requests_data['from_address']
-
-        wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
-        balance = wallet.eth.w3.eth.get_balance(from_address)
-        balance= Web3.from_wei(balance, 'ether')
-        print(balance)
-        # usdt_address='0xdac17f958d2ee523a2206206994597c13d831ec7'
-        # usdt_address=Web3.to_checksum_address(usdt_address)
-        # wallet_contract = wallet.eth.contract(usdt_address, abi=usdt_abi)
-        # usdt_balance = wallet_contract.functions.balanceOf(from_address).call()
-
-        # print(usdt_balance / 1000000)
-        #return wallet address and balance
-        message = {
-            'status' : 200,
-            'address' :from_address ,
-            'eth_balance' :float(balance) ,
-            # 'usdt_balance' : usdt_balance/ 1000000
         }
         respone = jsonify(message)
     except Exception as e:
