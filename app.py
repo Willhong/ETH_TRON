@@ -191,13 +191,10 @@ async def send_ETH():
         tx_hash = wallet.eth.send_raw_transaction(signed_txn.rawTransaction)
         receipt = wallet.eth.wait_for_transaction_receipt(tx_hash)
         print(receipt)
-        balance = wallet.eth.w3.eth.get_balance(from_address)
-        balance= Web3.from_wei(balance, 'ether')
-        print(balance)
         message = {
             'status' : 200,
             'address' :from_address ,
-            'balance' :balance ,
+            'balance' : Web3.from_wei(amount, 'ether'),
             'gas_spent' : gas_in_eth,
             'tx_hash' : tx_hash.hex()
 
