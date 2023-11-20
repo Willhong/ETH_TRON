@@ -128,7 +128,7 @@ async def send_ETH():
     try:
         requests_data = request.get_json()
         private_key=requests_data['private_key']
-        from_address=MAINWALLET_ADDRESS_ETH#requests_data['from_address']
+        from_address=requests_data['from_address']
         to_address=MAINWALLET_ADDRESS_ETH
 
         print("Address:", to_address)
