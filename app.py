@@ -108,8 +108,8 @@ async def createWallet_ETH():
         message = {
                 'status' : 200,
                 'address' :address ,
-                'public_key' : private_key,
-                'private_key' : public_key
+                'public_key' : public_key,
+                'private_key' : private_key
             }
         respone = jsonify(message)
         respone.status_code = 200
@@ -142,7 +142,8 @@ async def send_ETH():
             'value': balance,
         })
         gas_price = wallet.eth.gas_price
-        amount = balance - ((gas_estimate * gas_price)*1.1)
+        amount = int(balance - ((gas_estimate * gas_price)*1.1))
+
         transaction = {
             'to': to_address,
             'from': from_address,
