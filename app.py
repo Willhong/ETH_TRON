@@ -16,6 +16,7 @@ application = Flask(__name__)
 
 TRONGRID_API_KEY=""
 INFURA_PROVIDER_URL=""
+MAINWALLET_ADDRESS_ETH=""
 
 def encode_params(inputs):
     types = []
@@ -127,30 +128,30 @@ async def send_ETH():
     try:
         requests_data = request.get_json()
         private_key=requests_data['private_key']
-        from_address=requests_data['from_address']
-        to_address=requests_data['to_address']
-        amount=requests_data['amount']
+        from_address=MAINWALLET_ADDRESS_ETH#requests_data['from_address']
+        to_address=MAINWALLET_ADDRESS_ETH
 
         print("Address:", to_address)
 
         wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
         balance = wallet.eth.w3.eth.get_balance(from_address)
-        value = Web3.to_wei(amount, 'ether')
 
         gas_estimate = wallet.eth.estimate_gas({
             'from': from_address,
             'to': to_address,
-            'value': value,
+            'value': balance,
         })
         gas_price = wallet.eth.gas_price
+        amount = balance - ((gas_estimate * gas_price)*1.1)
         transaction = {
             'to': to_address,
             'from': from_address,
-            'value': value,
+            'value': amount,
             'gas': gas_estimate,
             'gasPrice': gas_price,
             'nonce': wallet.eth.get_transaction_count(from_address),
         }
+        gas_in_eth = Web3.from_wei(gas_price * gas_estimate *1.1, 'ether')
         signed_txn = wallet.eth.account.sign_transaction(transaction, private_key)
         tx_hash = wallet.eth.send_raw_transaction(signed_txn.rawTransaction)
         receipt = wallet.eth.wait_for_transaction_receipt(tx_hash)
@@ -158,12 +159,13 @@ async def send_ETH():
         balance = wallet.eth.w3.eth.get_balance(from_address)
         balance= Web3.from_wei(balance, 'ether')
         print(balance)
-        #return wallet address and balance
         message = {
             'status' : 200,
             'address' :to_address ,
             'balance' :balance ,
+            'gas_spent' : gas_in_eth,
             'tx_hash' : tx_hash.hex()
+
         }
         respone = jsonify(message)
     except Exception as e:
@@ -176,6 +178,93 @@ async def send_ETH():
     finally:
         return respone
     
+@application.route('/ETH/check/ETH/', methods=['POST'])
+async def check_ETH():
+    try:
+        requests_data = request.get_json()
+        from_address=requests_data['from_address']
+
+        wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
+        balance = wallet.eth.w3.eth.get_balance(from_address)
+        balance= Web3.from_wei(balance, 'ether')
+        print(balance)
+        # usdt_address='0xdac17f958d2ee523a2206206994597c13d831ec7'
+        # usdt_address=Web3.to_checksum_address(usdt_address)
+        # wallet_contract = wallet.eth.contract(usdt_address, abi=usdt_abi)
+        # usdt_balance = wallet_contract.functions.balanceOf(from_address).call()
+
+        # print(usdt_balance / 1000000)
+        #return wallet address and balance
+        message = {
+            'status' : 200,
+            'address' :from_address ,
+            'eth_balance' :float(balance) ,
+            # 'usdt_balance' : usdt_balance/ 1000000
+        }
+        respone = jsonify(message)
+    except Exception as e:
+        message = {
+                'status' : 500,
+                'message' : str(e)
+            }
+        respone = jsonify(message)
+        respone.status_code = 500
+    finally:
+        return respone
+
+@application.route('/ETH/gas', methods=['POST'])
+async def gas_USDT():
+    try:
+        requests_data = request.get_json()
+        from_address=requests_data['from_address']
+        to_address= MAINWALLET_ADDRESS_ETH
+        wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
+        
+        balance = wallet.eth.w3.eth.get_balance(from_address)
+        balance= Web3.from_wei(balance, 'ether')
+
+        usdt_address='0xdac17f958d2ee523a2206206994597c13d831ec7'
+        usdt_address=Web3.to_checksum_address(usdt_address)
+        wallet_contract = wallet.eth.contract(usdt_address, abi=usdt_abi)
+        usdt_balance = wallet_contract.functions.balanceOf(from_address).call()
+
+        estimated_gas_transfer = wallet_contract.functions.transfer(to_address, usdt_balance).estimate_gas({'from': from_address})
+        allowance=wallet_contract.functions.allowance(from_address, to_address).call()
+
+        if allowance==0:
+            estimated_gas_approve = wallet_contract.functions.approve(to_address, usdt_balance).estimate_gas({'from': from_address})
+        else:
+            estimated_gas_approve = 0
+
+        gas_price = wallet.eth.gas_price 
+
+        cost_in_wei_transfer = estimated_gas_transfer * gas_price
+        cost_in_wei_approve = estimated_gas_approve * gas_price
+
+        cost_in_ether_transfer = wallet.from_wei(cost_in_wei_transfer, 'ether')
+        cost_in_ether_approve = wallet.from_wei(cost_in_wei_approve, 'ether')
+
+        message = {
+                'status' : 200,
+                'to_address' :to_address ,
+                'from_address' : from_address,
+                'eth_balance' :balance ,
+                'usdt_balance' : f'{usdt_balance/ 1000000}USDT',
+                'estimate_gas_price_transfer' : f'{cost_in_ether_transfer}ETH',
+                'estimate_gas_price_approve' : f'{cost_in_ether_approve}ETH',
+                'estimate_gas_price(approve+send)' : f'{cost_in_ether_transfer+cost_in_ether_approve}ETH'
+        }
+        respone = jsonify(message)
+    except Exception as e:
+        message = {
+                'status' : 500,
+                'message' : str(e)
+            }
+        respone = jsonify(message)
+        respone.status_code = 500
+    finally:
+        return respone
+
 @application.route('/ETH/send/USDT/', methods=['POST'])
 async def send_USDT():
     try:
@@ -183,7 +272,8 @@ async def send_USDT():
         private_key=requests_data['private_key']
 
         from_address=requests_data['from_address']
-        to_address=requests_data['to_address']
+        to_address= MAINWALLET_ADDRESS_ETH
+
         print("Address:", to_address)
 
         wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
@@ -244,7 +334,7 @@ async def approve_USDT():
         private_key=requests_data['private_key']
 
         from_address=requests_data['from_address']
-        to_address=requests_data['to_address']
+        to_address= MAINWALLET_ADDRESS_ETH
         print("Address:", to_address)
         wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
         
@@ -292,60 +382,7 @@ async def approve_USDT():
         respone.status_code = 500
     finally:
         return respone
-    
-@application.route('/ETH/gas', methods=['POST'])
-async def gas_USDT():
-    try:
-        requests_data = request.get_json()
-        from_address=requests_data['from_address']
-        to_address=requests_data['to_address']
-        wallet= Web3(Web3.HTTPProvider(INFURA_PROVIDER_URL, request_kwargs={'timeout': 60}))
-        
-        balance = wallet.eth.w3.eth.get_balance(from_address)
-        balance= Web3.from_wei(balance, 'ether')
 
-        usdt_address='0xdac17f958d2ee523a2206206994597c13d831ec7'
-        usdt_address=Web3.to_checksum_address(usdt_address)
-        wallet_contract = wallet.eth.contract(usdt_address, abi=usdt_abi)
-        usdt_balance = wallet_contract.functions.balanceOf(from_address).call()
-
-        estimated_gas_transfer = wallet_contract.functions.transfer(to_address, usdt_balance).estimate_gas({'from': from_address})
-        allowance=wallet_contract.functions.allowance(from_address, to_address).call()
-
-        if allowance==0:
-            estimated_gas_approve = wallet_contract.functions.approve(to_address, usdt_balance).estimate_gas({'from': from_address})
-        else:
-            estimated_gas_approve = 0
-
-        gas_price = wallet.eth.gas_price 
-
-        cost_in_wei_transfer = estimated_gas_transfer * gas_price
-        cost_in_wei_approve = estimated_gas_approve * gas_price
-
-        cost_in_ether_transfer = wallet.from_wei(cost_in_wei_transfer, 'ether')
-        cost_in_ether_approve = wallet.from_wei(cost_in_wei_approve, 'ether')
-
-        message = {
-                'status' : 200,
-                'to_address' :to_address ,
-                'from_address' : from_address,
-                'eth_balance' :balance ,
-                'usdt_balance' : f'{usdt_balance/ 1000000}USDT',
-                'estimate_gas_price_transfer' : f'{cost_in_ether_transfer}ETH',
-                'estimate_gas_price_approve' : f'{cost_in_ether_approve}ETH',
-                'estimate_gas_price(approve+send)' : f'{cost_in_ether_transfer+cost_in_ether_approve}ETH'
-        }
-        respone = jsonify(message)
-    except Exception as e:
-        message = {
-                'status' : 500,
-                'message' : str(e)
-            }
-        respone = jsonify(message)
-        respone.status_code = 500
-    finally:
-        return respone
-    
 @application.route('/TRON/createWallet', methods=['GET'])
 async def createWallet_TRON():
     try:
